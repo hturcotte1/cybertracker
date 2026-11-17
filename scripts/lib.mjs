@@ -335,6 +335,17 @@ function words(title) {
   );
 }
 
+// Every word, filler included: two headlines this alike are copies of one syndicated story.
+function rawWords(title) {
+  return new Set(
+    title
+      .toLowerCase()
+      .replace(/[’'.]/g, '')
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 2),
+  );
+}
+
 function similar(a, b) {
   let shared = 0;
   for (const w of a) if (b.has(w)) shared += 1;
@@ -354,7 +365,7 @@ function pickHeadline(items) {
 export const NEWS_DEFAULTS = {
   windowHours: 24, // headlines older than this are dropped
   reportedHours: 3, // problem headlines this recent can mark a service "reported"...
-  minSources: 2, // ...when at least this many different outlets carry them
+  minSources: 2, // ...when at least this many independent stories carry them
   minSourcesAfterFix: 3, // ...or this many, saying it broke again, if a story already said it was fixed
   maxStories: 30,
   perService: 3,
@@ -421,7 +432,7 @@ export function processNews(items, services, nowMs, opts = {}) {
     const tone = RECOVERY_RE.test(title) ? 'update' : 'problem';
     relevant.push({
       title, source: item.source, url: item.url, publishedAt: item.publishedAt, t, tone,
-      services: hits.map((h) => h.id), primary: subjectOf(title, hits), words: words(title),
+      services: hits.map((h) => h.id), primary: subjectOf(title, hits), words: words(title), raw: rawWords(title),
     });
   }
   relevant.sort((a, b) => b.t - a.t);
@@ -479,15 +490,23 @@ export function processNews(items, services, nowMs, opts = {}) {
     const lastUpdate = mine.find((i) => i.tone === 'update');
     const start = Math.max(nowMs - o.reportedHours * 3600e3, lastUpdate ? lastUpdate.t + 1 : -Infinity);
     const live = mine.filter((i) => i.tone === 'problem' && i.t >= start);
-    // Each outlet counts once. A headline that's about this service counts fully; one that only
-    // lists it alongside the service that's actually down ("outages at Chase, BofA and Wells
-    // Fargo") counts half, so a real multi-bank outage still adds up but a passing mention doesn't.
-    const weightByOutlet = new Map();
+    // Count independent stories, not outlets: one syndicated column reprinted by ten papers is
+    // one report. A story that's about this service counts fully; one that only lists it next
+    // to the service that's actually down ("outages at Chase, BofA and Wells Fargo") counts
+    // half, so a real multi-bank outage still adds up but a passing mention doesn't.
+    const stories = [];
     for (const i of live) {
       const w = i.primary === s.id ? 1 : 0.5;
-      weightByOutlet.set(i.source, Math.max(weightByOutlet.get(i.source) || 0, w));
+      const copyOf = stories.find((st) => st.items.some((x) => similar(x.raw, i.raw) >= 0.8));
+      if (copyOf) {
+        copyOf.items.push(i);
+        copyOf.weight = Math.max(copyOf.weight, w);
+      } else {
+        stories.push({ items: [i], weight: w });
+      }
     }
-    const weight = [...weightByOutlet.values()].reduce((a, b) => a + b, 0);
+    const weight = stories.reduce((sum, st) => sum + st.weight, 0);
+    const outlets = new Set(live.map((i) => i.source));
     // Once an outage has been reported fixed, follow-up commentary keeps mentioning it, so ask
     // for more independent coverage, saying it broke again, before calling it broken.
     const needed = lastUpdate ? o.minSourcesAfterFix : o.minSources;
@@ -501,7 +520,8 @@ export function processNews(items, services, nowMs, opts = {}) {
         url: quote.url,
         publishedAt: quote.publishedAt,
         firstAt: new Date(Math.min(...live.map((i) => i.t))).toISOString(),
-        sources: weightByOutlet.size,
+        sources: outlets.size,
+        stories: stories.length,
       };
     }
     byService.set(s.id, {

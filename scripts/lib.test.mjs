@@ -274,14 +274,28 @@ test('processNews: a headline counts for the service it is about, not every name
 
   // A genuine multi-bank outage: many outlets listing them adds up for each bank.
   const wave = processNews(
-    ['CNN', 'CBS News', 'NBC News', 'Reuters'].map((outlet, n) =>
-      item(`Chase, Bank of America, Wells Fargo customers report outage ${n}`, outlet, 20 + n),
-    ),
+    [
+      item('Chase, Bank of America, Wells Fargo customers report outage', 'FOX 5', 20),
+      item('Bank outages reported: Chase, Bank of America, Wells Fargo customers report issues', 'Democrat and Chronicle', 21),
+      item('Chase, Bank of America, and Wells Fargo are experiencing online banking outages', 'Gizmodo', 22),
+      item('What to know about the bank outage: Chase, Wells Fargo, Bank of America users report outages', 'Dallas News', 23),
+    ],
     banks,
     NOW,
   );
   assert.equal(wave.byService.get('wells-fargo').reported.sources, 4);
   assert.equal(wave.byService.get('bank-of-america').reported.sources, 4);
+});
+
+test('processNews: copies of one syndicated story count once', () => {
+  const uber = normalizeConfig({ services: [{ name: 'Uber', url: 'https://www.uber.com' }] }).services;
+  const column = 'Outage math at the airport: When a four-hour Uber beats waiting out a ground stop';
+  const { byService } = processNews(
+    [item(column, 'Bozeman Daily Chronicle', 60), item(column, 'News4JAX', 60), item(column, 'Bangor Daily News', 60)],
+    uber,
+    NOW,
+  );
+  assert.equal(byService.get('uber').reported, null);
 });
 
 test('newsQueries builds one broad search plus one per category', () => {
