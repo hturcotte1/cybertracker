@@ -283,7 +283,11 @@ export const NOISE_RE =
 // Follow-ups (the outage is over, or the story looks back at it) and evergreen
 // explainers ("how to check if X is down") don't mean something is broken now.
 export const RECOVERY_RE =
-  /\b(restor(ed|es|ing)|resolv(ed|es|ing)|back (up|online|to normal)|recover(ed|s|ing|y)?|resum(ed|es|ing)|returns? to normal|normal operations|is over|(has |have )?ended|ends|fixed|caused|causes|cause (of|behind)|reveal(s|ed)?|explain(s|ed)?|taught|lessons?|underscores?|aftermath|post-?mortem|root cause|traced?|traces|blames?|after (an? |the |its |their )?([\w-]+ )?(outage|disruption|glitch)|how to (check|tell|know|fix|find out|see))\b/i;
+  /\b(restor(ed|es|ing)|resolv(ed|es|ing)|back (up|online|to normal)|recover(ed|s|ing|y)?|resum(ed|es|ing)|returns? to normal|normal operations|is over|(has |have )?ended|ends|fixed|caused|causes|cause (of|behind)|reveal(s|ed)?|explain(s|ed)?|taught|lessons?|underscores?|aftermath|post-?mortem|root cause|traced?|traces|blames?|after (an? |the |its |their )?([\w-]+ ){0,3}(outages?|disruptions?|glitch(es)?|failures?)|had (an? |its |their )?([\w"“”'‘’-]+ ){0,3}(outages?|disruptions?|glitch(es)?)|how to (check|tell|know|fix|find out|see))\b/i;
+
+// After a "fixed" story, coverage only means a NEW problem if it says so.
+export const AGAIN_RE =
+  /\b(again|(another|second|new|renewed|fresh|repeat) (outage|outages|disruption|glitch|failure|problems?|issues?))\b/i;
 
 // Outlets we'd rather quote when many are covering the same story.
 const PREFERRED_SOURCES = [
@@ -351,7 +355,7 @@ export const NEWS_DEFAULTS = {
   windowHours: 24, // headlines older than this are dropped
   reportedHours: 3, // problem headlines this recent can mark a service "reported"...
   minSources: 2, // ...when at least this many different outlets carry them
-  minSourcesAfterFix: 3, // ...or this many, if a story in the last day already said it was fixed
+  minSourcesAfterFix: 3, // ...or this many, saying it broke again, if a story already said it was fixed
   maxStories: 30,
   perService: 3,
 };
@@ -462,8 +466,9 @@ export function processNews(items, services, nowMs, opts = {}) {
     // Once an outage has been reported fixed, follow-up commentary keeps mentioning it, so ask
     // for more independent coverage before calling it broken again.
     const needed = lastUpdate ? o.minSourcesAfterFix : o.minSources;
+    const isNewProblem = !lastUpdate || live.some((i) => AGAIN_RE.test(i.title));
     let reported = null;
-    if (outlets.size >= needed) {
+    if (outlets.size >= needed && isNewProblem) {
       const quote = pickHeadline(live);
       reported = {
         title: quote.title,

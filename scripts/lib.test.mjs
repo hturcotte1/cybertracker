@@ -220,6 +220,19 @@ test('processNews: one outlet, old news, or a newer "fixed" story → not report
     NOW,
   );
   assert.equal(fixedThenThree.byService.get('chase').reported.sources, 3);
+
+  // Late coverage of the same (already fixed) outage doesn't count, however many outlets run it.
+  const lateCoverage = processNews(
+    [
+      item('United Airlines system outage resolved', 'KSAT', 90),
+      item('United Airlines outage delays departing flights', 'KGNU', 70),
+      item('United Airlines grounds flights nationwide after widespread system outage', 'AeroXplorer', 12),
+      item('United Airlines had a “widespread system outage,” 3 days after the FAA ground stop', '24/7 Wall St.', 6),
+    ],
+    normalizeConfig({ services: [{ name: 'United Airlines', url: 'https://www.united.com', news: ['United Airlines'] }] }).services,
+    NOW,
+  );
+  assert.equal(lateCoverage.byService.get('united-airlines').reported, null);
 });
 
 test('processNews: drops power cuts and non-tech "is down" headlines, merges syndicated copies', () => {
