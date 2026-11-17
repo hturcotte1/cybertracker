@@ -366,6 +366,20 @@ export const NEWS_DEFAULTS = {
  *  - byService: service id → { headlines, reported }, where `reported` is set
  *    when several outlets are describing a live problem with that service
  */
+/**
+ * The service a headline's outage words are about: the one named closest to them.
+ * "Wells Fargo doubles down on bitcoin ETF, and Chase goes down" is about Chase.
+ */
+function subjectOf(title, hits) {
+  if (!hits.length) return null;
+  const outage = OUTAGE_RE.exec(title);
+  if (!outage) return hits[0].id;
+  const start = outage.index;
+  const end = start + outage[0].length;
+  const gap = (h) => (h.end <= start ? start - h.end : h.at >= end ? h.at - end : 0);
+  return hits.reduce((best, h) => (gap(h) < gap(best) ? h : best)).id;
+}
+
 /** Services a story is about: the most-mentioned first, at most four. */
 function rankServices(list) {
   const counts = new Map();
@@ -397,14 +411,17 @@ export function processNews(items, services, nowMs, opts = {}) {
     if (!OUTAGE_RE.test(title) || NOISE_RE.test(title)) continue;
     // Every tracked service named in the headline, in the order they appear.
     const hits = matchers
-      .map((m) => ({ id: m.id, at: title.search(m.re) }))
-      .filter((h) => h.at >= 0)
+      .map((m) => {
+        const found = m.re.exec(title);
+        return found ? { id: m.id, at: found.index, end: found.index + found[0].length } : null;
+      })
+      .filter(Boolean)
       .sort((a, b) => a.at - b.at);
     if (!hits.length && !TECH_RE.test(title)) continue;
     const tone = RECOVERY_RE.test(title) ? 'update' : 'problem';
     relevant.push({
       title, source: item.source, url: item.url, publishedAt: item.publishedAt, t, tone,
-      services: hits.map((h) => h.id), primary: hits[0]?.id || null, words: words(title),
+      services: hits.map((h) => h.id), primary: subjectOf(title, hits), words: words(title),
     });
   }
   relevant.sort((a, b) => b.t - a.t);
@@ -462,13 +479,21 @@ export function processNews(items, services, nowMs, opts = {}) {
     const lastUpdate = mine.find((i) => i.tone === 'update');
     const start = Math.max(nowMs - o.reportedHours * 3600e3, lastUpdate ? lastUpdate.t + 1 : -Infinity);
     const live = mine.filter((i) => i.tone === 'problem' && i.t >= start);
-    const outlets = new Set(live.map((i) => i.source));
+    // Each outlet counts once. A headline that's about this service counts fully; one that only
+    // lists it alongside the service that's actually down ("outages at Chase, BofA and Wells
+    // Fargo") counts half, so a real multi-bank outage still adds up but a passing mention doesn't.
+    const weightByOutlet = new Map();
+    for (const i of live) {
+      const w = i.primary === s.id ? 1 : 0.5;
+      weightByOutlet.set(i.source, Math.max(weightByOutlet.get(i.source) || 0, w));
+    }
+    const weight = [...weightByOutlet.values()].reduce((a, b) => a + b, 0);
     // Once an outage has been reported fixed, follow-up commentary keeps mentioning it, so ask
-    // for more independent coverage before calling it broken again.
+    // for more independent coverage, saying it broke again, before calling it broken.
     const needed = lastUpdate ? o.minSourcesAfterFix : o.minSources;
     const isNewProblem = !lastUpdate || live.some((i) => AGAIN_RE.test(i.title));
     let reported = null;
-    if (outlets.size >= needed && isNewProblem) {
+    if (weight >= needed && isNewProblem) {
       const quote = pickHeadline(live);
       reported = {
         title: quote.title,
@@ -476,7 +501,7 @@ export function processNews(items, services, nowMs, opts = {}) {
         url: quote.url,
         publishedAt: quote.publishedAt,
         firstAt: new Date(Math.min(...live.map((i) => i.t))).toISOString(),
-        sources: outlets.size,
+        sources: weightByOutlet.size,
       };
     }
     byService.set(s.id, {

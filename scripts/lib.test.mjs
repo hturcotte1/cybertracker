@@ -251,6 +251,39 @@ test('processNews: drops power cuts and non-tech "is down" headlines, merges syn
   assert.equal(byService.get('nsa').reported.sources, 3);
 });
 
+test('processNews: a headline counts for the service it is about, not every name in it', () => {
+  const banks = normalizeConfig({
+    services: [
+      { name: 'Chase', url: 'https://www.chase.com', news: ['Chase', 'JPMorgan'] },
+      { name: 'Bank of America', url: 'https://www.bankofamerica.com' },
+      { name: 'Wells Fargo', url: 'https://www.wellsfargo.com' },
+    ],
+  }).services;
+
+  // Stale multi-bank story + a newsletter aside about Chase: Wells Fargo isn't down.
+  const aside = processNews(
+    [
+      item('Customers report outages at Chase, Bank of America and Wells Fargo', 'BBC', 120),
+      item('Wells Fargo doubles down on bitcoin ETF, and Chase goes down, but bitcoin stays', 'Yahoo Finance', 30),
+    ],
+    banks,
+    NOW,
+  );
+  assert.equal(aside.byService.get('wells-fargo').reported, null);
+  assert.equal(aside.byService.get('chase').reported.sources, 2);
+
+  // A genuine multi-bank outage: many outlets listing them adds up for each bank.
+  const wave = processNews(
+    ['CNN', 'CBS News', 'NBC News', 'Reuters'].map((outlet, n) =>
+      item(`Chase, Bank of America, Wells Fargo customers report outage ${n}`, outlet, 20 + n),
+    ),
+    banks,
+    NOW,
+  );
+  assert.equal(wave.byService.get('wells-fargo').reported.sources, 4);
+  assert.equal(wave.byService.get('bank-of-america').reported.sources, 4);
+});
+
 test('newsQueries builds one broad search plus one per category', () => {
   const queries = newsQueries(SERVICES);
   assert.equal(queries.length, 3);
