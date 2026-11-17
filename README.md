@@ -60,7 +60,7 @@ The workflow starts collecting data as soon as this code is on the repo's defaul
 
 > **Default branch:** scheduled runs only happen on the repo's default branch. Because this repo started empty, the first branch pushed to it became the default. You can rename it to `main` under **Settings → Branches**; the workflow works with any branch name.
 
-GitHub sometimes starts scheduled runs late during busy periods. The page shows when the last check finished and warns visitors if results are more than 20 minutes old.
+GitHub's scheduler sometimes runs late or stalls, especially on new repos. When no scheduled run has happened for 12 minutes, the workflow's backup timer (the `keepalive` job) starts the next check itself, so checks keep running about every 5 minutes either way. The page shows when the last check finished and warns visitors if results are more than 20 minutes old.
 
 ## Add or change a service
 
