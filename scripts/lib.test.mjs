@@ -298,6 +298,22 @@ test('processNews: copies of one syndicated story count once', () => {
   assert.equal(byService.get('uber').reported, null);
 });
 
+test('processNews: an explainer mid-outage does not count as "fixed"', () => {
+  const apple = normalizeConfig({ services: [{ name: 'iCloud', url: 'https://www.icloud.com', news: ['iCloud', 'Apple outage', 'Apple services'] }] }).services;
+  const { byService } = processNews(
+    [
+      item('iCloud and other Apple services are down in an apparent outage', 'Engadget', 50),
+      item('Apple outage causes service disruptions for users', 'PIX11', 25),
+      item('Apple outage hits App Store and Music as iCloud sign-ins falter', 'finchannel', 15),
+      item('Apple services, including iCloud, App Store, and Apple Music, hit by outage', 'TechCrunch', 10),
+    ],
+    apple,
+    NOW,
+  );
+  assert.ok(byService.get('icloud').reported);
+  assert.equal(byService.get('icloud').reported.source, 'TechCrunch');
+});
+
 test('newsQueries builds one broad search plus one per category', () => {
   const queries = newsQueries(SERVICES);
   assert.equal(queries.length, 3);

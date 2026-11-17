@@ -280,10 +280,19 @@ export const TECH_RE =
 export const NOISE_RE =
   /\b(power (outages?|cuts?|failures?|restored|lines?|grid)|without power|blackouts?|electric(al|ity)?|utilit(y|ies)|planned outage|outage map|water (main|outage)|gas (leak|outage)|wildfire|hurricane|tornado|snowstorm|ice storm)\b/i;
 
-// Follow-ups (the outage is over, or the story looks back at it) and evergreen
-// explainers ("how to check if X is down") don't mean something is broken now.
-export const RECOVERY_RE =
-  /\b(restor(ed|es|ing)|resolv(ed|es|ing)|back (up|online|to normal)|recover(ed|s|ing|y)?|resum(ed|es|ing)|returns? to normal|normal operations|is over|(has |have )?ended|ends|fixed|caused|causes|cause (of|behind)|reveal(s|ed)?|explain(s|ed)?|taught|lessons?|underscores?|aftermath|post-?mortem|root cause|traced?|traces|blames?|after (an? |the |its |their )?([\w-]+ ){0,3}(outages?|disruptions?|glitch(es)?|failures?)|had (an? |its |their )?([\w"“”'‘’-]+ ){0,3}(outages?|disruptions?|glitch(es)?)|how to (check|tell|know|fix|find out|see))\b/i;
+// The outage is over. Only this resets a service, after which it takes coverage saying it
+// broke *again* to report it.
+export const FIXED_RE =
+  /\b(restor(ed|es|ing)|resolv(ed|es|ing)|back (up|online|to normal)|recover(ed|s)|resum(ed|es|ing)|returns? to normal|normal operations|is over|(has |have )?ended|ends|fixed)\b/i;
+
+// Looks back at or explains an outage ("what caused…", "lessons from…", "how to check if…").
+// These don't count as reports of a live problem, but they don't mean it's fixed either:
+// "Apple outage causes service disruptions" is a live story.
+export const FOLLOWUP_RE =
+  /\b(what caused|caused by|causes? (of|behind)|root cause|reveal(s|ed)?|explain(s|ed)?|taught|lessons?|underscores?|aftermath|post-?mortem|traced?|traces|blames?|after (an? |the |its |their )?([\w-]+ ){0,3}(outages?|disruptions?|glitch(es)?|failures?)|had (an? |its |their )?([\w"“”'‘’-]+ ){0,3}(outages?|disruptions?|glitch(es)?)|how to (check|tell|know|fix|find out|see))\b/i;
+
+/** Either kind of not-a-new-problem headline. */
+export const RECOVERY_RE = { test: (title) => FIXED_RE.test(title) || FOLLOWUP_RE.test(title) };
 
 // After a "fixed" story, coverage only means a NEW problem if it says so.
 export const AGAIN_RE =
@@ -429,9 +438,10 @@ export function processNews(items, services, nowMs, opts = {}) {
       .filter(Boolean)
       .sort((a, b) => a.at - b.at);
     if (!hits.length && !TECH_RE.test(title)) continue;
-    const tone = RECOVERY_RE.test(title) ? 'update' : 'problem';
+    const fixed = FIXED_RE.test(title);
+    const tone = fixed || FOLLOWUP_RE.test(title) ? 'update' : 'problem';
     relevant.push({
-      title, source: item.source, url: item.url, publishedAt: item.publishedAt, t, tone,
+      title, source: item.source, url: item.url, publishedAt: item.publishedAt, t, tone, fixed,
       services: hits.map((h) => h.id), primary: subjectOf(title, hits), words: words(title), raw: rawWords(title),
     });
   }
@@ -487,7 +497,7 @@ export function processNews(items, services, nowMs, opts = {}) {
     const mine = relevant.filter((i) => i.services.includes(s.id)); // newest first
     if (!mine.length) continue;
     // Only problem reports newer than the latest "it's fixed" story count.
-    const lastUpdate = mine.find((i) => i.tone === 'update');
+    const lastUpdate = mine.find((i) => i.fixed);
     const start = Math.max(nowMs - o.reportedHours * 3600e3, lastUpdate ? lastUpdate.t + 1 : -Infinity);
     const live = mine.filter((i) => i.tone === 'problem' && i.t >= start);
     // Count independent stories, not outlets: one syndicated column reprinted by ten papers is

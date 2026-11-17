@@ -134,7 +134,8 @@ jobs:
           }
           if scheduler_is_fine; then echo "GitHub's scheduler is running normally."; exit 0; fi
 
-          started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at 2>/dev/null || echo "")
+          # Time from when this run's check actually started (a run can wait in line first).
+          started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --jq '.jobs[] | select(.name == "check") | .started_at' 2>/dev/null | head -n 1 || echo "")
           elapsed=$(( $(date -u +%s) - $(date -u -d "${started:-now}" +%s 2>/dev/null || date -u +%s) ))
           wait=$(( 290 - elapsed ))
           [ "$wait" -gt 280 ] && wait=280
