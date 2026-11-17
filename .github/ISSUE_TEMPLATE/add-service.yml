@@ -1,0 +1,46 @@
+name: Add a service
+description: Suggest a website or app for the tracker to watch
+title: "Track: "
+labels: ["add-service"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: Charles Schwab
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Website
+      placeholder: https://www.schwab.com
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Government
+        - Banking & Money
+        - Cloud & Internet
+        - Email & Chat
+        - Social & Media
+        - Phone & Internet
+        - Shopping & Travel
+        - Apps & Entertainment
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: signin
+    attributes:
+      label: Sign-in page (optional)
+      description: Outages often break logging in before the homepage, so this is worth checking too.
+      placeholder: https://client.schwab.com/Login/SignOn/CustomerCenterLogin.aspx
+  - type: input
+    id: status
+    attributes:
+      label: Official status page (optional)
+      placeholder: https://status.example.com

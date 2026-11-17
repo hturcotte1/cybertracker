@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What's down right now · CyberTracker</title>
+  <meta name="description" content="Live tracker of which banks, government sites, cloud services and apps are down right now. Automatic site checks every few minutes, plus official status pages and news reports.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="What's down right now · CyberTracker">
+  <meta property="og:description" content="Live status of banks, government sites, cloud services and apps. Checked every few minutes, with news reports.">
+  <meta property="og:image" content="https://hturcotte1.github.io/cybertracker/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" id="favicon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script>
+    // Apply a saved light/dark choice before first paint.
+    try {
+      var saved = localStorage.getItem('ct-theme');
+      if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
+    } catch (e) {}
+  </script>
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#board">Skip to the list</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="./" aria-label="CyberTracker home">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2.5" opacity=".3"/>
+          <path d="M5 17h5l3-7 5 13 3-6h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle class="brand-dot" cx="25" cy="7" r="4"/>
+        </svg>
+        <span>CyberTracker</span>
+      </a>
+      <nav class="topnav" aria-label="Site">
+        <a class="nav-link hide-sm" href="#how">How it works</a>
+        <a class="nav-link hide-sm" id="add-service-link" href="#how">Add a service</a>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch to dark mode" title="Light / dark">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor"/></svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      <p class="banner banner-stale" id="stale" hidden></p>
+      <p class="banner banner-notice" id="notice" hidden></p>
+
+      <section class="hero" aria-labelledby="headline">
+        <div class="hero-main">
+          <p class="live" id="live"><span class="live-dot" aria-hidden="true"></span><span id="updated">Loading…</span></p>
+          <h1 class="headline" id="headline">
+            <span class="hero-badge" id="hero-badge" aria-hidden="true">…</span>
+            <span id="hero-text">Checking what's down…</span>
+          </h1>
+          <p class="hero-names" id="hero-names"></p>
+          <div class="stats" id="stats" role="list"></div>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="test-all" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="19.5" r="1.5" fill="currentColor"/></svg>
+              <span id="test-all-label">Is it just me? Test from my network</span>
+            </button>
+            <button class="btn" id="share" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Share
+            </button>
+          </div>
+          <p class="test-summary" id="test-summary" role="status" hidden></p>
+        </div>
+
+        <figure class="chart-card" aria-labelledby="chart-title">
+          <figcaption>
+            <h2 id="chart-title">Problems over time</h2>
+            <p class="sub" id="chart-sub">Number of tracked services with each kind of problem</p>
+          </figcaption>
+          <ul class="legend" id="chart-legend"></ul>
+          <div class="chart" id="chart" tabindex="0" role="img" aria-label="Chart of problems over time"></div>
+          <details class="table-view" id="chart-table">
+            <summary>Show as a table</summary>
+            <div class="table-scroll"></div>
+          </details>
+        </figure>
+      </section>
+
+      <div class="filters" id="board" role="search">
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span class="visually-hidden">Find a service</span>
+          <input type="search" id="q" placeholder="Find a service…" autocomplete="off" spellcheck="false">
+        </label>
+        <div class="chips" id="chips" role="group" aria-label="Filter by category"></div>
+      </div>
+      <p class="status-key" id="status-key"></p>
+
+      <div class="layout">
+        <section class="group" id="down" aria-labelledby="down-title" hidden>
+          <h2 id="down-title"><span class="group-icon s-down" aria-hidden="true"></span>Down right now <span class="count"></span></h2>
+          <p class="group-desc">Our checks can't load these at all.</p>
+          <div class="cards"></div>
+        </section>
+        <section class="group" id="issues" aria-labelledby="issues-title" hidden>
+          <h2 id="issues-title"><span class="group-icon s-issues" aria-hidden="true"></span>Having issues <span class="count"></span></h2>
+          <p class="group-desc">Partly broken, very slow, or the company reports a major problem.</p>
+          <div class="cards"></div>
+        </section>
+        <section class="group" id="news" aria-labelledby="news-title" hidden>
+          <h2 id="news-title"><span class="group-icon s-news" aria-hidden="true"></span>Reported in the news <span class="count"></span></h2>
+          <p class="group-desc">The site still loads for us, but several news outlets are reporting problems, often with logins or behind-the-scenes systems.</p>
+          <div class="cards"></div>
+        </section>
+
+        <aside class="side" aria-label="Live updates">
+          <section class="panel" id="stories" aria-labelledby="stories-title">
+            <h2 id="stories-title">In the news</h2>
+            <p class="panel-sub" id="stories-sub">Outage headlines from the last 24 hours</p>
+            <ol class="feed"></ol>
+            <button class="more" type="button" hidden>Show more</button>
+          </section>
+          <section class="panel" id="changes" aria-labelledby="changes-title">
+            <h2 id="changes-title">Status changes</h2>
+            <p class="panel-sub">When something we track goes down or comes back</p>
+            <ol class="feed"></ol>
+            <button class="more" type="button" hidden>Show more</button>
+          </section>
+        </aside>
+
+        <section class="group" id="up" aria-labelledby="up-title" hidden>
+          <h2 id="up-title"><span class="group-icon s-up" aria-hidden="true"></span>Working normally <span class="count"></span></h2>
+          <div class="tile-groups"></div>
+        </section>
+
+        <p class="empty" id="no-match" hidden></p>
+      </div>
+
+      <section class="how" id="how" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <ol class="how-steps">
+          <li>
+            <h3>A robot visits every site</h3>
+            <p>About every 5 minutes, it loads each homepage, and the sign-in page for banks, from GitHub's cloud servers. No answer, or a server error, after a retry: <strong>Down</strong>. Some pages failing, or very slow: <strong>Having issues</strong>.</p>
+          </li>
+          <li>
+            <h3>It reads the news</h3>
+            <p>Some outages never show on a homepage, like a bank's login breaking or an agency's internal network failing. When several outlets report a problem in the last few hours, and nothing newer says it's fixed: <strong>Reported in the news</strong>.</p>
+          </li>
+          <li>
+            <h3>It checks official status pages</h3>
+            <p>When a company's own status page reports a major outage, that counts too. Minor incidents are shown as notes.</p>
+          </li>
+          <li>
+            <h3>You can test it yourself</h3>
+            <p><strong>Is it just me?</strong> tries every site from your own browser. If most fail for you but not for us, the problem is probably your connection.</p>
+          </li>
+        </ol>
+        <p class="fine">Sites that block robots but still answer count as working. Phone and home-internet networks can't be checked from a website, so carriers are tracked from news reports only. Something wrong or missing? <a id="issue-link" href="#how">Tell us on GitHub</a>.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p>CyberTracker is an independent, open-source project. It isn't affiliated with any company or agency listed.</p>
+      <p><a id="repo-link" href="#how">Source code on GitHub</a></p>
+    </div>
+  </footer>
+
+  <dialog class="detail" id="detail" aria-labelledby="d-name">
+    <div class="detail-inner" id="detail-body"></div>
+  </dialog>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p class="banner">This tracker needs JavaScript to show live status.</p></noscript>
+</body>
+</html>

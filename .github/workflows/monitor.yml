@@ -1,0 +1,107 @@
+# Checks every service, saves the results to site/data/, and publishes the website.
+# Runs every 5 minutes (GitHub sometimes starts scheduled runs a few minutes late),
+# whenever code is pushed to the default branch, and on demand from the Actions tab.
+name: Monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - "site/data/**"
+      - "**.md"
+
+permissions:
+  contents: write # save results back to the repo
+  pages: write # publish the website
+  id-token: write # required by actions/deploy-pages
+
+# One run at a time; a new run waits for the previous one instead of cancelling it.
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    # Scheduled runs always use the default branch. Pushes to other branches don't publish.
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      publish: ${{ steps.pages.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Run tests
+        if: github.event_name != 'schedule'
+        run: npm test
+
+      - name: Check every service
+        id: check
+        run: node scripts/check.mjs
+
+      - name: Save results to the repo
+        env:
+          SUMMARY: ${{ steps.check.outputs.summary }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit --quiet -m "Status: ${SUMMARY:-update}"
+          for attempt in 1 2 3 4; do
+            if git pull --quiet --rebase origin "$GITHUB_REF_NAME" && git push --quiet origin "HEAD:$GITHUB_REF_NAME"; then
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 5))
+          done
+          echo "::error::Couldn't save the results because the branch kept changing. The next run will try again."
+          exit 1
+
+      - name: Is GitHub Pages turned on?
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if out=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type 2>&1); then
+            if [ "$out" = "workflow" ]; then
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "::warning title=Website not published::GitHub Pages is set to deploy from a branch. In Settings → Pages, set Source to \"GitHub Actions\"."
+            fi
+          elif echo "$out" | grep -q "404"; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Website not published yet::Turn on GitHub Pages in Settings → Pages → Source: \"GitHub Actions\". Status data is still being collected."
+          else
+            echo "Couldn't tell whether Pages is on ($out); trying to publish anyway."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package the website
+        if: steps.pages.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publish:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Publish to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

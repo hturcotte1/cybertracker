@@ -1,0 +1,13 @@
+{
+  "name": "cybertracker",
+  "private": true,
+  "description": "Live tracker of what's down right now: site checks, official status pages and news reports.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "check:dry": "node scripts/check.mjs --dry-run",
+    "serve": "python3 -m http.server 8080 --directory site",
+    "test": "node --test scripts/lib.test.mjs"
+  }
+}
